@@ -94,6 +94,12 @@ CONFIG = {
     },
 }
 
+# Or, you can put the config (and logging defaults) in a separate file.
+try:
+    from slackbridgeconf import BASE_PATH, CONFIG
+except ImportError:
+    pass
+
 # Globals initialized once below.
 REQUEST_HANDLER = None
 RESPONSE_WORKER = None
@@ -306,6 +312,7 @@ def application(environ, start_response):
 
 def builtin_httpd(address, port):
     from wsgiref.simple_server import make_server
+    log.info('Starting builtin httpd...')
     server = make_server('127.0.0.1', 8001, application)
     try:
         server.serve_forever()
