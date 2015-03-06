@@ -272,42 +272,46 @@ def response_worker(config, logger, ipc):
 
 
 def application(environ, start_response):
-    # Lazy initialization from first application call.
-    #
-    # The laziness ensures that every WSGI worker gets its own personal
-    # subprocess, instead of a shared global one. (Which causes all
-    # sorts of grief.) Alternately, you could use the uWSGI lazy-apps
-    # setting.
-    global REQUEST_HANDLER, RESPONSE_WORKER
+    global REQUEST_HANDLER
     if not REQUEST_HANDLER:
-        log.info('Starting workers...')
-        # For some reason, using a Queue() did not work at all as soon
-        # as this was started from uWSGI. In buildin_httpd mode it
-        # worked fine. But in uWSGI the Queue seemed to buffer outgoing
-        # messages.
-        parent_pipe, child_pipe = Pipe()
-        RESPONSE_WORKER = Process(
-            target=response_worker, args=(CONFIG, log, child_pipe))
-        RESPONSE_WORKER.start()
-        REQUEST_HANDLER = RequestHandler(
-            config=CONFIG, logger=log, ipc=parent_pipe, base_path=BASE_PATH)
-
-        # Add handler to shutdown gracefully from uWSGI. This is needed
-        # for graceful uWSGI reload/shutdown.
-        try:
-            import uwsgi
-        except ImportError:
-            pass
-        else:
-            def goodbye():
-                log.debug('Stopping workers...')
-                REQUEST_HANDLER.ipc.send(None)  # HAXX
-                RESPONSE_WORKER.join()
-                log.info('Finished...')
-            uwsgi.atexit = goodbye
+        # Lazily initialize the subprocess. If you don't use the uWSGI
+        # `lazy-apps` setting, you need it to be done on the first request.
+        # Note that that seems to cause a response issue (with nginx) for the
+        # first request.
+        init_globals()
 
     # log.debug('Got request:\n%r' % (environ,))
     return REQUEST_HANDLER.request(environ, start_response)
+
+
+def init_globals():
+    global REQUEST_HANDLER, RESPONSE_WORKER
+
+    log.info('Starting workers...')
+    # For some reason, using a Queue() did not work at all as soon
+    # as this was started from uWSGI. In buildin_httpd mode it
+    # worked fine. But in uWSGI the Queue seemed to buffer outgoing
+    # messages.
+    parent_pipe, child_pipe = Pipe()
+    RESPONSE_WORKER = Process(
+        target=response_worker, args=(CONFIG, log, child_pipe))
+    RESPONSE_WORKER.start()
+    REQUEST_HANDLER = RequestHandler(
+        config=CONFIG, logger=log, ipc=parent_pipe, base_path=BASE_PATH)
+
+    # Add handler to shutdown gracefully from uWSGI. This is needed
+    # for graceful uWSGI reload/shutdown.
+    try:
+        import uwsgi
+    except ImportError:
+        pass
+    else:
+        def goodbye():
+            log.debug('Stopping workers...')
+            REQUEST_HANDLER.ipc.send(None)  # HAXX
+            RESPONSE_WORKER.join()
+            log.info('Finished...')
+        uwsgi.atexit = goodbye
 
 
 def builtin_httpd(address, port):
@@ -323,6 +327,10 @@ def builtin_httpd(address, port):
             RESPONSE_WORKER.join()
         log.info('Finished...')
 
+
+# # Initialize subprocess immediately. Only use this if you use the uWSGI
+# # `lazy-apps` setting or have a single worker only!
+# init_globals()
 
 if __name__ == '__main__':
     # If you don't use uWSGI, you can use the builtin_httpd.
