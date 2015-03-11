@@ -324,7 +324,7 @@ class ResponseHandler(object):
         data = parse.urlencode({'payload': json.dumps(payload)})
         log.debug('incomingwh_post: send: %r', data)
         try:
-            response = request.urlopen(url, data)
+            response = request.urlopen(url, data.encode('utf-8'))
         except Exception as e:
             log.error('Posting message failed: %s', e)
             if hasattr(e, 'fp'):
