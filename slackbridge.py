@@ -150,8 +150,8 @@ class RequestHandler(object):
         self.config = config
         self.logger = logger
         self.ipc = ipc
-        if not base_path.endswith('/'):
-            base_path += '/'
+        if base_path.endswith('/'):
+            base_path = base_path[0:-1]
         self.base_path = base_path
 
     def request(self, environ, start_response):
@@ -162,8 +162,8 @@ class RequestHandler(object):
         # Get all needed values.
         method = environ.get('REQUEST_METHOD')
         path_info = environ.get('PATH_INFO')
-        assert (path_info == self.base_path[0:-1] or
-                path_info.startswith(self.base_path)), \
+        assert (path_info == self.base_path or
+                path_info.startswith(self.base_path + '/')), \
             'PATH_INFO %r does not start with %r' % (path_info, self.base_path)
         self.path_info = path_info[len(self.base_path):]
 
