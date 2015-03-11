@@ -42,11 +42,11 @@ Configuration of this application:
         CONFIG = {
             '<outgoing_token_from_team_1>': {
                 'url': '<incoming_url_from_team_2>',
-                'update': {'channel': '#<name_of_shared_channel_on_team2>'},
+                'update': {'channel': '#<name_of_shared_channel_on_team_2>'},
             },
             '<outgoing_token_from_team_2>': {
                 'url': '<incoming_url_from_team_1>',
-                'update': {'channel': '#<name_of_shared_channel_on_team1>'},
+                'update': {'channel': '#<name_of_shared_channel_on_team_1>'},
             },
         }
 
@@ -72,3 +72,6 @@ TODO
   * Clean up code (ugly globals). Too few subclasses.
   * Make more extensible. You may want to integrate your own
     slackbot-style responses here.
+  * Fix replacement of <@U9999ZZZZ> with @name. This would require a
+    mapping between the two, fetched from an API? Or configured
+    manually?
