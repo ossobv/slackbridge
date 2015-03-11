@@ -41,10 +41,18 @@ Configuration of this application:
 
         CONFIG = {
             '<outgoing_token_from_team_1>': {
-                'url': '<incoming_url_from_team_2>',
+                # This one is optional. Fetch a token here:
+                # https://api.slack.com/web#authentication
+                'users.list': 'https://slack.com/api/users.list?token=TEAM1',
+                # The next two settings are for the TEAM2-side.
+                'url': '<incoming_webhook_url_from_team_2>',
                 'update': {'channel': '#<name_of_shared_channel_on_team_2>'},
             },
             '<outgoing_token_from_team_2>': {
+                # This one is optional. Fetch a token here:
+                # https://api.slack.com/web#authentication
+                'users.list': 'https://slack.com/api/users.list?token=TEAM1',
+                # The next two settings are for the TEAM1-side.
                 'url': '<incoming_url_from_team_1>',
                 'update': {'channel': '#<name_of_shared_channel_on_team_1>'},
             },
@@ -72,6 +80,9 @@ TODO
   * Clean up code (ugly globals). Too few subclasses.
   * Make more extensible. You may want to integrate your own
     slackbot-style responses here.
-  * Fix replacement of <@U9999ZZZZ> with @name. This would require a
-    mapping between the two, fetched from an API? Or configured
-    manually?
+  * Add default icon to CONFIG, so we can reuse the same incoming
+    webhook for more than one team, even if they don't supply the
+    users.list.
+  * Add !users commands, so we can see all users, local and remote.
+    (Requires more API abuse.)
+    See: https://slack.com/api/channels.info?token=TOKEN&channel=C9999ZZZZ&pretty=1

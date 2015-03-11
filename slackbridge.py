@@ -36,10 +36,18 @@ Configuration of this application:
 
         CONFIG = {
             '<outgoing_token_from_team_1>': {
-                'url': '<incoming_url_from_team_2>',
+                # This one is optional. Fetch a token here:
+                # https://api.slack.com/web#authentication
+                'users.list': 'https://slack.com/api/users.list?token=TEAM1',
+                # The next two settings are for the TEAM2-side.
+                'url': '<incoming_webhook_url_from_team_2>',
                 'update': {'channel': '#<name_of_shared_channel_on_team_2>'},
             },
             '<outgoing_token_from_team_2>': {
+                # This one is optional.
+                # https://api.slack.com/web#authentication
+                'users.list': 'https://slack.com/api/users.list?token=TEAM2',
+                # The next two settings are for the TEAM1-side.
                 'url': '<incoming_url_from_team_1>',
                 'update': {'channel': '#<name_of_shared_channel_on_team_1>'},
             },
@@ -69,6 +77,7 @@ import cgi
 import datetime
 import json
 import logging
+import re
 import traceback
 import urllib
 import urllib2
@@ -189,15 +198,22 @@ class RequestHandler(object):
         return cgi.FieldStorage(fp=environ['wsgi.input'], environ=post_env,
                                 keep_blank_values=True)
 
-    @staticmethod
-    def get_fields(payload):
-        return dict((i, payload.getfirst(i)) for i in payload.keys())
+    if hasattr(str, 'decode'):  # python2, decode data to unicode
+        @staticmethod
+        def get_fields(payload):
+            return dict((i, payload.getfirst(i).decode('utf-8'))
+                        for i in payload.keys())
+    else:  # python3, already unicode
+        @staticmethod
+        def get_fields(payload):
+            return dict((i, payload.getfirst(i)) for i in payload.keys())
 
 
 class ResponseHandler(object):
     def __init__(self, config, logger):
         self.config = config
         self.log = logger
+        self.users_lists = {}
 
     def respond(self, outgoingwh_values):
         # Never forward messages from the slackbot, they could cause
@@ -214,15 +230,16 @@ class ResponseHandler(object):
         if not config:
             log.info('Token %s not found in config...', token)
             return
-        payload = self.outgoingwh2incomingwh(
-            outgoingwh_values, config['update'])
+        users_list = self.get_users_list(token, config.get('users.list'))
+        payload = self.outgoingwh_to_incomingwh(
+            outgoingwh_values, config['update'], users_list)
 
         # Send.
         log.info('Responding with %r to %s', payload, config['url'])
         self.incomingwh_post(config['url'], payload)
 
-    @staticmethod
-    def outgoingwh2incomingwh(outgoingwh_values, update):
+    @classmethod
+    def outgoingwh_to_incomingwh(cls, outgoingwh_values, update, users_list):
         # https://api.slack.com/docs/formatting
         #
         # {'user_id': 'USLACKBOT', 'channel_name': 'crack', 'timestamp':
@@ -255,30 +272,81 @@ class ResponseHandler(object):
         # users, we won't use parse=none, but will use link_names=1.
         #
         payload = {
-            'text': outgoingwh_values['text'],
+            'text': cls.outgoingwh_fixtext(outgoingwh_values['text'],
+                                           users_list),
             'channel': '#' + outgoingwh_values['channel_name'],
             'username': outgoingwh_values['user_name'],
             'link_names': 1,
-            # 'icon_emoji': '???',
         }
+
+        icon_url = (users_list.get(outgoingwh_values['user_id'], {})
+                    .get('image_32'))
+        if icon_url:
+            payload.update({'icon_url': icon_url})
+
         payload.update(update)
         return payload
 
-    @staticmethod
-    def incomingwh_post(url, payload):
+    @classmethod
+    def outgoingwh_fixtext(cls, text, users_list):
+        """
+        Replace "abc <@U9999ZZZZ> def" with "abc @someuser def" if we
+        have that user in our list.
+        """
+        def replace(match):
+            user_id = match.groups()[0]
+            try:
+                return '@' + users_list[user_id]['name']
+            except KeyError:
+                return '<@' + user_id + '>'  # untouched
+        return re.sub(r'<@(U[^>]+)>', replace, text)
+
+    @classmethod
+    def incomingwh_post(cls, url, payload):
         data = urllib.urlencode({'payload': json.dumps(payload)})
         log.debug('incomingwh_post: send: %r', data)
         req = urllib2.Request(url, data)
         try:
             response = urllib2.urlopen(req)
         except Exception as e:
-            log.error('Got error: %s', e)
+            log.error('Posting message failed: %s', e)
             if hasattr(e, 'fp'):
                 data = e.fp.read()
-                log.info('Got data: %s', data)
+                log.info('Got data: %r', data)
         else:
             data = response.read()
             log.debug('incomingwh_post: recv: %r', data)
+
+    def get_users_list(self, token, url):
+        # Check if we have the list already.
+        # TODO: this is now infinitely cached, not nice
+        if not url:
+            self.users_lists[token] = {}
+
+        if token not in self.users_lists:
+            log.info('Fetching userlist for %s...', token)
+            req = urllib2.Request(url)
+            try:
+                response = urllib2.urlopen(req)
+            except Exception as e:
+                log.error('Fetching userlist failed: %s', e)
+                if hasattr(e, 'fp'):
+                    data = e.fp.read()
+                    log.info('Got data: %r', data)
+                self.users_lists[token] = {}
+            else:
+                data = response.read()
+                data = data.decode('utf-8', 'replace')
+                users = json.loads(data)
+                users = dict(
+                    (i.get('id'),
+                     {'name': i.get('name', 'NAMELESS'),
+                      'image_32': i.get('profile', {}).get('image_32')})
+                    for i in users.get('members', {}))
+                self.users_lists[token] = users
+                log.debug('users_lists: %r', self.users_lists[token])
+
+        return self.users_lists[token]
 
 
 def response_worker(config, logger, ipc):
