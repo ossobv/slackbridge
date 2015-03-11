@@ -84,13 +84,13 @@ BASE_PATH = '/'
 # a dictionary with payload updates ({'channel': '#new_chan'}).
 # TODO: should we index it by "service_id" instead of "token"?
 CONFIG = {
-    'OutGoingTokenFromTeam1>': {
+    'OutGoingTokenFromTeam1': {
         'url': 'https://hooks.slack.com/services/TEAM2/INCOMING/SeCrEt',
-        'update': {'channel': '#shared-team2>'},
+        'update': {'channel': '#shared-team2'},
     },
-    'OutGoingTokenFromTeam2>': {
+    'OutGoingTokenFromTeam2': {
         'url': 'https://hooks.slack.com/services/TEAM1/INCOMING/SeCrEt',
-        'update': {'channel': '#shared-team1>'},
+        'update': {'channel': '#shared-team1'},
     },
 }
 
