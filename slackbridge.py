@@ -110,9 +110,15 @@ RESPONSE_WORKER = None
 # logging.basicConfig(
 #     filename=log_file,
 #     level=logging.DEBUG,
-#     format='[%(asctime)s] %(levelname)s: %(message)s',
+#     format='[%(asctime)s] %(levelname)s/%(pid)s: %(message)s',
 #     datefmt='%Y-%m-%d %H:%M:%S %Z')
 log = logging.getLogger('slackbridge')
+# import os
+# class AddPidFilter(logging.Filter):
+#     def filter(self, record):
+#         record.pid = os.getpid()
+#         return True
+# log.addFilter(AddPidFilter())
 
 
 class RequestHandler(object):
