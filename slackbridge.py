@@ -79,10 +79,18 @@ import json
 import logging
 import re
 import traceback
-import urllib
-import urllib2
+
+try:
+    from urllib import request
+except ImportError:
+    import urllib2 as request  # python2
+try:
+    from urllib import parse
+except ImportError:
+    import urllib as parse  # python2
 
 from multiprocessing import Process, Pipe
+from pprint import pformat
 
 
 # BASE_PATH needs to be set to the path prefix (location) as configured
@@ -174,8 +182,8 @@ class RequestHandler(object):
                       (datetime.datetime.now(), self.path_info))
         # Return some debug info.
         self.start_response(
-            '200 OK', [('Content-type', 'text/plain')])
-        return ['Default GET ', repr(self.env)]
+            '200 OK', [('Content-type', 'text/plain; charset=utf-8')])
+        return [('Default GET:\n' + pformat(self.env)).encode('utf-8')]
 
     def post(self, payload):
         log.debug('Handle POST: %s, %r', self.path_info, payload)
@@ -188,10 +196,11 @@ class RequestHandler(object):
 
             # Return the empty response.
             self.start_response(
-                '200 OK', [('Content-type', 'application/json')])
+                '200 OK', [('Content-type',
+                            'application/json; charset=utf-8')])
             # TODO: if the pipe is full, we should reply that we cannot
             # forward anymore.
-            return ['{}']  # don't reply to outgoing messages..
+            return ['{}'.encode('utf-8')]  # don't reply to outgoing messages..
 
         # Unknown.
         self.start_response('404 Not Found')
@@ -310,11 +319,10 @@ class ResponseHandler(object):
 
     @classmethod
     def incomingwh_post(cls, url, payload):
-        data = urllib.urlencode({'payload': json.dumps(payload)})
+        data = parse.urlencode({'payload': json.dumps(payload)})
         log.debug('incomingwh_post: send: %r', data)
-        req = urllib2.Request(url, data)
         try:
-            response = urllib2.urlopen(req)
+            response = request.urlopen(url, data)
         except Exception as e:
             log.error('Posting message failed: %s', e)
             if hasattr(e, 'fp'):
@@ -332,9 +340,8 @@ class ResponseHandler(object):
 
         if token not in self.users_lists:
             log.info('Fetching userlist for %s...', token)
-            req = urllib2.Request(url)
             try:
-                response = urllib2.urlopen(req)
+                response = request.urlopen(url)
             except Exception as e:
                 log.error('Fetching userlist failed: %s', e)
                 if hasattr(e, 'fp'):
