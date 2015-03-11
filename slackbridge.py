@@ -36,20 +36,22 @@ Configuration of this application:
 
         CONFIG = {
             '<outgoing_token_from_team_1>': {
-                # This one is optional. Fetch a token here:
-                # https://api.slack.com/web#authentication
-                'users.list': 'https://slack.com/api/users.list?token=TEAM1',
                 # The next two settings are for the TEAM2-side.
-                'url': '<incoming_webhook_url_from_team_2>',
-                'update': {'channel': '#<name_of_shared_channel_on_team_2>'},
+                'iwh_url': '<incoming_webhook_url_from_team_2>',
+                'iwh_update': {'channel': '#<destination_channel_on_team_2>'},
+                # Linked with other, optional.
+                'owh_linked': '<outgoing_token_from_team_2>',
+                # Web Api token, optional, see https://api.slack.com/web.
+                'wa_token': '<token_from_team1_user>',
             },
             '<outgoing_token_from_team_2>': {
-                # This one is optional.
-                # https://api.slack.com/web#authentication
-                'users.list': 'https://slack.com/api/users.list?token=TEAM2',
                 # The next two settings are for the TEAM1-side.
-                'url': '<incoming_url_from_team_1>',
-                'update': {'channel': '#<name_of_shared_channel_on_team_1>'},
+                'iwh_url': '<incoming_url_from_team_1>',
+                'iwh_update': {'channel': '#<destination_channel_on_team_1>'},
+                # Linked with other, optional.
+                'owh_linked': '<outgoing_token_from_team_1>',
+                # Web Api token, optional, see https://api.slack.com/web.
+                'wa_token': '<token_from_team2_user>',
             },
         }
 
@@ -97,19 +99,10 @@ from pprint import pformat
 # in the web server.
 BASE_PATH = '/'
 # CONFIG is a dictionary indexed by "Outgoing WebHooks" token.
-# The subdictionaries contain 'url' for "Incoming WebHooks" post and
+# The subdictionaries contain 'iwh_url' for "Incoming WebHooks" post and
 # a dictionary with payload updates ({'channel': '#new_chan'}).
-# TODO: should we index it by "service_id" instead of "token"?
-CONFIG = {
-    'OutGoingTokenFromTeam1': {
-        'url': 'https://hooks.slack.com/services/TEAM2/INCOMING/SeCrEt',
-        'update': {'channel': '#shared-team2'},
-    },
-    'OutGoingTokenFromTeam2': {
-        'url': 'https://hooks.slack.com/services/TEAM1/INCOMING/SeCrEt',
-        'update': {'channel': '#shared-team1'},
-    },
-}
+# TODO: should we index it by "service_id" instead of "(owh)token"?
+CONFIG = {}
 # Lazy initialization of workers?
 LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
 
@@ -122,6 +115,12 @@ except ImportError:
 # Globals initialized once below.
 REQUEST_HANDLER = None
 RESPONSE_WORKER = None
+
+# API URLs
+WA_USERS_LIST = 'https://slack.com/api/users.list?token=%(wa_token)s'
+WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
+                    'exclude_archived=1')
+
 
 # # Optionally configure a basic logger.
 # class Logger(logging.getLoggerClass()):
@@ -238,23 +237,47 @@ class ResponseHandler(object):
         # infinite loops. Especially considering that our own posted
         # messages get that exact user_id.
         if outgoingwh_values['user_id'] == 'USLACKBOT':
-            log.debug('Ignoring because from slackbot: %r',
-                      outgoingwh_values)
+            self.log.debug('Ignoring because from slackbot: %r',
+                           outgoingwh_values)
             return
 
         # Translate.
-        token = outgoingwh_values['token']
-        config = self.config.get(token)
+        owh_token = outgoingwh_values['token']
+        config = self.config.get(owh_token)
         if not config:
-            log.info('Token %s not found in config...', token)
+            self.log.info('OWH token %s not found in config...', owh_token)
             return
-        users_list = self.get_users_list(token, config.get('users.list'))
+
+        # Exceptions to regular forwarding.
+        if outgoingwh_values['text'] == '!info':
+            # Fetch info, and send to local channel only.
+            info = self.get_info(owh_token)
+            try:
+                remote_config = self.config[config['owh_linked']]
+                remote_iwh_url = remote_config['iwh_url']
+            except KeyError:
+                self.log.warn('Could not get linked IWH URL')
+                return
+            payload = {
+                'text': '(local reply only)\n' + '\n'.join(
+                    '%s: %s' % (i['channel'],
+                                ', '.join(sorted(i['users'])))
+                    for i in sorted(info.values(),
+                                    key=(lambda x: x['channel']))),
+                'channel': '#' + outgoingwh_values['channel_name']
+            }
+            # Send.
+            self.log.info('Responding with %r to %s', payload, remote_iwh_url)
+            self.incomingwh_post(remote_iwh_url, payload)
+            return
+
+        users_list = self.get_users_list(owh_token, config.get('wa_token'))
         payload = self.outgoingwh_to_incomingwh(
-            outgoingwh_values, config['update'], users_list)
+            outgoingwh_values, config['iwh_update'], users_list)
 
         # Send.
-        log.info('Responding with %r to %s', payload, config['url'])
-        self.incomingwh_post(config['url'], payload)
+        self.log.info('Responding with %r to %s', payload, config['iwh_url'])
+        self.incomingwh_post(config['iwh_url'], payload)
 
     @classmethod
     def outgoingwh_to_incomingwh(cls, outgoingwh_values, update, users_list):
@@ -334,22 +357,23 @@ class ResponseHandler(object):
             data = response.read()
             log.debug('incomingwh_post: recv: %r', data)
 
-    def get_users_list(self, token, url):
+    def get_users_list(self, owh_token, wa_token):
         # Check if we have the list already.
         # TODO: this is now infinitely cached, not nice
-        if not url:
-            self.users_lists[token] = {}
+        if not wa_token:
+            self.users_lists[owh_token] = {}
 
-        if token not in self.users_lists:
-            log.info('Fetching userlist for %s...', token)
+        if owh_token not in self.users_lists:
+            self.log.info('Fetching users.list for %s...', owh_token)
+            url = WA_USERS_LIST % {'wa_token': wa_token}
             try:
                 response = request.urlopen(url)
             except Exception as e:
-                log.error('Fetching userlist failed: %s', e)
+                self.log.error('Fetching users.list failed: %s', e)
                 if hasattr(e, 'fp'):
                     data = e.fp.read()
-                    log.info('Got data: %r', data)
-                self.users_lists[token] = {}
+                    self.log.info('Got data: %r', data)
+                self.users_lists[owh_token] = {}
             else:
                 data = response.read()
                 data = data.decode('utf-8', 'replace')
@@ -358,11 +382,83 @@ class ResponseHandler(object):
                     (i.get('id'),
                      {'name': i.get('name', 'NAMELESS'),
                       'image_32': i.get('profile', {}).get('image_32')})
-                    for i in users.get('members', {}))
-                self.users_lists[token] = users
-                log.debug('users_lists: %r', self.users_lists[token])
+                    for i in users.get('members', []))
+                self.users_lists[owh_token] = users
+                self.log.debug('users_lists: %r', self.users_lists[owh_token])
 
-        return self.users_lists[token]
+        return self.users_lists[owh_token]
+
+    def get_channel_members(self, wa_token, channel_name):
+        """
+        We could get the channel info from the ``channel.info`` call,
+        but then we need the channel id (C9999ZZZZ), which we don't
+        have.
+        """
+        self.log.info('Fetching channels.list for %s...', channel_name)
+        url = WA_CHANNELS_LIST % {'wa_token': wa_token}
+        try:
+            response = request.urlopen(url)
+        except Exception as e:
+            self.log.error('Fetching channels.list failed: %s', e)
+            if hasattr(e, 'fp'):
+                data = e.fp.read()
+                self.log.info('Got data: %r', data)
+        else:
+            data = response.read()
+            data = data.decode('utf-8', 'replace')
+            channels = json.loads(data)
+            self.log.debug('channels.list: %r', channels)
+            for channel in channels.get('channels', []):
+                if channel.get('name') == channel_name:
+                    return channel.get('members', [])
+        return []
+
+    def get_channel_users(self, owh_token, wa_token, channel_name):
+        members = self.get_channel_members(wa_token, channel_name)
+        if not members:
+            return members
+
+        users_list = self.get_users_list(owh_token, wa_token)
+        return [users_list.get(i, {'name': i})['name'] for i in members]
+
+    def get_info(self, local_owh_token):
+        # Get info about channel linkage and local and remote users.
+        local_config = self.config[local_owh_token]
+        local_channel = remote_channel = remote_wa_token = ''
+        local_users = remote_users = []
+        local_wa_token = local_config.get('wa_token', '')
+
+        try:
+            remote_channel = local_config['iwh_update']['channel'][1:]
+        except KeyError:
+            pass
+
+        remote_owh_token = local_config.get('owh_linked')
+        remote_config = self.config.get(remote_owh_token)
+        if remote_config:
+            remote_wa_token = remote_config.get('wa_token', '')
+            try:
+                local_channel = remote_config['iwh_update']['channel'][1:]
+            except KeyError:
+                local_channel = ''
+
+        if local_channel and local_wa_token:
+            local_users = self.get_channel_users(
+                local_owh_token, local_wa_token, local_channel)
+        if remote_channel and remote_wa_token:
+            remote_users = self.get_channel_users(
+                remote_owh_token, remote_wa_token, remote_channel)
+
+        return {
+            local_owh_token: {'channel': '#' + local_channel,
+                              'users': local_users},
+            remote_owh_token: {'channel': '#' + remote_channel,
+                               'users': remote_users},
+        }
+
+    # def test(self, owh_token):
+    #     x = self.get_info(owh_token)
+    #     self.log.debug('TEST: %r', x)
 
 
 def response_worker(config, logger, ipc):
@@ -374,17 +470,19 @@ def response_worker(config, logger, ipc):
             if item is None:
                 break
             elif isinstance(item, str):
-                log.info('Got string: %s', item)
+                logger.info('Got string: %s', item)
+                # if item.rsplit('/', 1)[-1] in config:
+                #     responsehandler.test(item.rsplit('/', 1)[-1])
             else:
                 try:
                     responsehandler.respond(item)
                 except:
-                    log.error('For item: %r', item)
-                    log.error(traceback.format_exc())
-                    log.warn('Continuing...')
+                    logger.error('For item: %r', item)
+                    logger.error(traceback.format_exc())
+                    logger.warn('Continuing...')
     except:
-        log.error(traceback.format_exc())
-        log.warn('Aborting...')
+        logger.error(traceback.format_exc())
+        logger.warn('Aborting...')
 
 
 def application(environ, start_response):
