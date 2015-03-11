@@ -114,6 +114,16 @@ REQUEST_HANDLER = None
 RESPONSE_WORKER = None
 
 # # Optionally configure a basic logger.
+# class Logger(logging.getLoggerClass()):
+#     class AddPidFilter(logging.Filter):
+#         def filter(self, record):
+#             record.pid = os.getpid()
+#             return True
+#
+#     def __init__(self, *args, **kwargs):
+#         super(Logger, self).__init__(*args, **kwargs)
+#         self.addFilter(Logger.AddPidFilter())
+#
 # log_file = '/srv/http/my.example.com/logs/%s.log' % (
 #     __file__.rsplit('/', 1)[-1].rsplit('.', 1)[0],)
 # logging.basicConfig(
@@ -121,13 +131,8 @@ RESPONSE_WORKER = None
 #     level=logging.DEBUG,
 #     format='[%(asctime)s] %(levelname)s/%(pid)s: %(message)s',
 #     datefmt='%Y-%m-%d %H:%M:%S %Z')
+# logging.setLoggerClass(Logger)
 log = logging.getLogger('slackbridge')
-# import os
-# class AddPidFilter(logging.Filter):
-#     def filter(self, record):
-#         record.pid = os.getpid()
-#         return True
-# log.addFilter(AddPidFilter())
 
 
 class RequestHandler(object):
