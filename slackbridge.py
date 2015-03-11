@@ -223,16 +223,42 @@ class ResponseHandler(object):
 
     @staticmethod
     def outgoingwh2incomingwh(outgoingwh_values, update):
+        # https://api.slack.com/docs/formatting
+        #
         # {'user_id': 'USLACKBOT', 'channel_name': 'crack', 'timestamp':
         # '1425548120.000032', 'team_id': 'T9999ZZZZ', 'channel_id':
         # 'C9999ZZZZ', 'token': 'OutGoingTokenFromTeam1', 'text':
         # 'I used to work at Kwik-Fit, but I gave up the job; every day '
         # 'I was tyred and exhausted.', 'team_domain': 'ossobv',
         # 'user_name': 'slackbot', 'service_id': '1234567890'}
+        #
+        # For unknown users we get:
+        #   "ja volgens mij ook @walter"
+        # When written to incoming (with link_names=1), this translates
+        # to:
+        #   "ja volgens mij ook <@U9999ZZZZ|walter>"
+        # that is, including magic angle brackets.
+        #
+        # Link-names also translates @channel:
+        #   "@channel: sorry voor de test spam"
+        # becomes:
+        #   "<!channel>: sorry voor de test spam"
+        #
+        # Literal angle brackets are already escaped before being passed
+        # to us:
+        #   "test &lt;@wdoekes&gt; 1..2..3" and
+        #   "icon voor je incoming webhook: <https://s..._48.jpg>"
+        # So that can be safely forwarded without requiring additional
+        # escaping.
+        #
+        # In conclusion, since we don't know the U-number of the remote
+        # users, we won't use parse=none, but will use link_names=1.
+        #
         payload = {
             'text': outgoingwh_values['text'],
             'channel': '#' + outgoingwh_values['channel_name'],
             'username': outgoingwh_values['user_name'],
+            'link_names': 1,
             # 'icon_emoji': '???',
         }
         payload.update(update)
