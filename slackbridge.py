@@ -424,7 +424,7 @@ def init_globals():
 def builtin_httpd(address, port):
     from wsgiref.simple_server import make_server
     log.info('Starting builtin httpd...')
-    server = make_server('127.0.0.1', 8001, application)
+    server = make_server(address, port, application)
     try:
         server.serve_forever()
     except (KeyboardInterrupt, SystemExit):
