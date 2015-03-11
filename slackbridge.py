@@ -146,7 +146,7 @@ class RequestHandler(object):
             return []
 
     def get(self):
-        log.debug('Handle GET: %s' % (self.path_info,))
+        log.debug('Handle GET: %s', self.path_info)
         # This data tests the subprocess.
         self.ipc.send('PING @ %s: %s' %
                       (datetime.datetime.now(), self.path_info))
@@ -156,7 +156,7 @@ class RequestHandler(object):
         return ['Default GET ', repr(self.env)]
 
     def post(self, payload):
-        log.debug('Handle POST: %s, %r' % (self.path_info, payload))
+        log.debug('Handle POST: %s, %r', self.path_info, payload)
 
         if self.path_info == '/outgoing':
             # Just put the entire postdata in the queue.
@@ -198,21 +198,21 @@ class ResponseHandler(object):
         # infinite loops. Especially considering that our own posted
         # messages get that exact user_id.
         if outgoingwh_values['user_id'] == 'USLACKBOT':
-            log.debug('Ignoring because from slackbot: %r' %
-                      (outgoingwh_values,))
+            log.debug('Ignoring because from slackbot: %r',
+                      outgoingwh_values)
             return
 
         # Translate.
         token = outgoingwh_values['token']
         config = self.config.get(token)
         if not config:
-            log.info('Token %s not found in config...' % (token,))
+            log.info('Token %s not found in config...', token)
             return
         payload = self.outgoingwh2incomingwh(
             outgoingwh_values, config['update'])
 
         # Send.
-        log.info('Responding with %r to %s' % (payload, config['url']))
+        log.info('Responding with %r to %s', payload, config['url'])
         self.incomingwh_post(config['url'], payload)
 
     @staticmethod
@@ -235,18 +235,18 @@ class ResponseHandler(object):
     @staticmethod
     def incomingwh_post(url, payload):
         data = urllib.urlencode({'payload': json.dumps(payload)})
-        log.debug('incomingwh_post: send: %r' % (data,))
+        log.debug('incomingwh_post: send: %r', data)
         req = urllib2.Request(url, data)
         try:
             response = urllib2.urlopen(req)
         except Exception as e:
-            log.error('Got error: %s' % (e,))
+            log.error('Got error: %s', e)
             if hasattr(e, 'fp'):
                 data = e.fp.read()
-                log.info('Got data: %s' % (data,))
+                log.info('Got data: %s', data)
         else:
             data = response.read()
-            log.debug('incomingwh_post: recv: %r' % (data,))
+            log.debug('incomingwh_post: recv: %r', data)
 
 
 def response_worker(config, logger, ipc):
@@ -258,12 +258,12 @@ def response_worker(config, logger, ipc):
             if item is None:
                 break
             elif isinstance(item, str):
-                log.info('Got string: %s' % (item,))
+                log.info('Got string: %s', item)
             else:
                 try:
                     responsehandler.respond(item)
                 except:
-                    log.error('For item: %r' % (item,))
+                    log.error('For item: %r', item)
                     log.error(traceback.format_exc())
                     log.warn('Continuing...')
     except:
@@ -280,7 +280,7 @@ def application(environ, start_response):
         # first request.
         init_globals()
 
-    # log.debug('Got request:\n%r' % (environ,))
+    # log.debug('Got request:\n%r', environ)
     return REQUEST_HANDLER.request(environ, start_response)
 
 
