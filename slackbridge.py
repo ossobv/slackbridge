@@ -110,10 +110,12 @@ CONFIG = {
         'update': {'channel': '#shared-team1'},
     },
 }
+# Lazy initialization of workers?
+LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
 
 # Or, you can put the config (and logging defaults) in a separate file.
 try:
-    from slackbridgeconf import BASE_PATH, CONFIG
+    from slackbridgeconf import BASE_PATH, CONFIG, LAZY_INITIALIZATION
 except ImportError:
     pass
 
@@ -442,9 +444,11 @@ def builtin_httpd(address, port):
         log.info('Finished...')
 
 
-# # Initialize subprocess immediately. Only use this if you use the uWSGI
-# # `lazy-apps` setting or have a single worker only!
-# init_globals()
+# Initialize subprocess immediately. Only use this if you use the uWSGI
+# `lazy-apps` setting or have a single worker only!
+if not LAZY_INITIALIZATION:
+    init_globals()
+
 
 if __name__ == '__main__':
     # If you don't use uWSGI, you can use the builtin_httpd.
