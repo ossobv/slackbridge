@@ -20,12 +20,13 @@ You'll need to run this as a daemon on a publicly reachable IP:
 
 Configuration in Slack:
 
-  * Create at least one "Incoming WebHook" per Slack team; record the URL.
+  * Create at least one "Incoming WebHook"[1] per Slack team; record the
+    URL.
     (Pro tip: set the other relation's brand logo as default icon!)
-  * Create one "Outgoing WebHook" per Slack #channel you want to join;
-    record the secret "token". Set the webhook POST URL to the URL where
-    this bridge is reachable from the world, and append "/outgoing" to
-    the path.
+  * Create one "Outgoing WebHook"[2] per Slack #channel you want to
+    join; record the secret "token". Set the webhook POST URL to the URL
+    where this bridge is reachable from the world, and append
+    "/outgoing" to the path.
 
 Configuration of this application:
 
@@ -38,16 +39,20 @@ Configuration of this application:
             '<outgoing_token_from_team_1>': {
                 # The next two settings are for the TEAM2-side.
                 'iwh_url': '<incoming_webhook_url_from_team_2>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_2>'},
+                'iwh_update': {'channel': '#<destination_channel_on_team_2>',
+                               '_atchannel': '<team2_name_for_team1>'},
                 # Linked with other, optional.
                 'owh_linked': '<outgoing_token_from_team_2>',
                 # Web Api token, optional, see https://api.slack.com/web.
                 'wa_token': '<token_from_team1_user>',
+                # Optional team 2 name to notify @team2 from team1.
+                'other_name': '<team2_name>',
             },
             '<outgoing_token_from_team_2>': {
                 # The next two settings are for the TEAM1-side.
                 'iwh_url': '<incoming_url_from_team_1>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_1>'},
+                'iwh_update': {'channel': '#<destination_channel_on_team_1>',
+                               '_atchannel': '<team1_name_for_team2>'},
                 # Linked with other, optional.
                 'owh_linked': '<outgoing_token_from_team_1>',
                 # Web Api token, optional, see https://api.slack.com/web.
@@ -66,12 +71,27 @@ It works like this:
   * The bridge posts the message to a subprocess, so the main process
     can return immediately.
   * The subprocess translates the values from the Outgoing WebHook to
-    values for the Incoming WebHook, optionally overwriting the
-    #channel name.
+    values for the Incoming WebHook:
+    - It overwrites the #channel name (if 'channel' in 'iwh_update' is
+      set).
+    - It adds avatars to the user messages (if 'wa_token' is set).
+    - It replaces @team1 with @channel (if '_atchannel' in 'iwh_update'
+      is set).
+    - It removes/untranslates local @mentions (if 'wa_token' is set).
   * The translated values get posted to the Incoming WebHook URL.
+
+Supported commands by the bot -- type it in a bridged channel and get
+the response there:
+
+  * `!info` lists the users on both sides of the bridge. Now you know
+    who you can @mention.
+
 
 Enjoy!
 
+
+[1] https://my.slack.com/services/new/incoming-webhook
+[2] https://my.slack.com/services/new/outgoing-webhook
 
 Copyright (C) Walter Doekes, OSSO B.V. 2015
 """
@@ -260,8 +280,9 @@ class ResponseHandler(object):
                 return
             payload = {
                 'text': '(local reply only)\n' + '\n'.join(
-                    '%s: %s' % (i['channel'],
-                                ', '.join(sorted(i['users'])))
+                    '@%s %s: %s' % (
+                        i['atchannel'], i['channel'],
+                        ', '.join(sorted(i['users'])))
                     for i in sorted(info.values(),
                                     key=(lambda x: x['channel']))),
                 'channel': '#' + outgoingwh_values['channel_name']
@@ -313,8 +334,9 @@ class ResponseHandler(object):
         # users, we won't use parse=none, but will use link_names=1.
         #
         payload = {
-            'text': cls.outgoingwh_fixtext(outgoingwh_values['text'],
-                                           users_list),
+            'text': cls.outgoingwh_fixtext(
+                outgoingwh_values['text'], users_list,
+                atchannel=update.get('_atchannel')),
             'channel': '#' + outgoingwh_values['channel_name'],
             'username': outgoingwh_values['user_name'],
             'link_names': 1,
@@ -325,11 +347,12 @@ class ResponseHandler(object):
         if icon_url:
             payload.update({'icon_url': icon_url})
 
-        payload.update(update)
+        payload.update(
+            dict((k, v) for k, v in update.items() if not k.startswith('_')))
         return payload
 
     @classmethod
-    def outgoingwh_fixtext(cls, text, users_list):
+    def outgoingwh_fixtext(cls, text, users_list, atchannel):
         """
         Replace "abc <@U9999ZZZZ> def" with "abc @someuser def" if we
         have that user in our list.
@@ -340,7 +363,14 @@ class ResponseHandler(object):
                 return '@' + users_list[user_id]['name']
             except KeyError:
                 return '<@' + user_id + '>'  # untouched
-        return re.sub(r'<@(U[^>]+)>', replace, text)
+
+        if atchannel:
+            text = re.sub(r'(^|[^\w])@' + atchannel + r'\b',
+                          r'\1@channel',
+                          text)
+        text = re.sub(r'<@(U[^>]+)>', replace, text)
+
+        return text
 
     @classmethod
     def incomingwh_post(cls, url, payload):
@@ -424,12 +454,17 @@ class ResponseHandler(object):
     def get_info(self, local_owh_token):
         # Get info about channel linkage and local and remote users.
         local_config = self.config[local_owh_token]
-        local_channel = remote_channel = remote_wa_token = ''
+        local_channel = remote_channel = remote_wa_token = '<unset>'
+        local_atchannel = remote_atchannel = '<unset>'
         local_users = remote_users = []
         local_wa_token = local_config.get('wa_token', '')
 
         try:
             remote_channel = local_config['iwh_update']['channel'][1:]
+        except KeyError:
+            pass
+        try:
+            remote_atchannel = local_config['iwh_update']['_atchannel']
         except KeyError:
             pass
 
@@ -440,7 +475,11 @@ class ResponseHandler(object):
             try:
                 local_channel = remote_config['iwh_update']['channel'][1:]
             except KeyError:
-                local_channel = ''
+                pass
+            try:
+                local_atchannel = remote_config['iwh_update']['_atchannel']
+            except KeyError:
+                pass
 
         if local_channel and local_wa_token:
             local_users = self.get_channel_users(
@@ -451,9 +490,11 @@ class ResponseHandler(object):
 
         return {
             local_owh_token: {'channel': '#' + local_channel,
-                              'users': local_users},
+                              'users': local_users,
+                              'atchannel': local_atchannel},
             remote_owh_token: {'channel': '#' + remote_channel,
-                               'users': remote_users},
+                               'users': remote_users,
+                               'atchannel': remote_atchannel},
         }
 
     # def test(self, owh_token):

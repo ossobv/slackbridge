@@ -25,9 +25,13 @@ You'll need to run this as a daemon on a publicly reachable IP:
 
 Configuration in Slack:
 
-  * Create at least one _Incoming WebHook_ per Slack team; record the URL.
+  * Create at least one
+    [Incoming WebHook](https://my.slack.com/services/new/incoming-webhook)
+    per Slack team; record the URL.
     (Pro tip: set the other relation's brand logo as default icon!)
-  * Create one _Outgoing WebHook_ per Slack `#channel` you want to join;
+  * Create one
+    [Outgoing WebHook](https://my.slack.com/services/new/outgoing-webhook)
+    _per_ Slack `#channel` you want to join;
     record the secret `token`. Set the webhook POST URL to the URL where
     this bridge is reachable from the world, and append `/outgoing` to
     the path.
@@ -43,7 +47,8 @@ Configuration of this application:
             '<outgoing_token_from_team_1>': {
                 # The next two settings are for the TEAM2-side.
                 'iwh_url': '<incoming_webhook_url_from_team_2>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_2>'},
+                'iwh_update': {'channel': '#<destination_channel_on_team_2>',
+                               '_atchannel': '<team2_name_for_team1>'},
                 # Linked with other, optional.
                 'owh_linked': '<outgoing_token_from_team_2>',
                 # Web Api token, optional, see https://api.slack.com/web.
@@ -52,7 +57,8 @@ Configuration of this application:
             '<outgoing_token_from_team_2>': {
                 # The next two settings are for the TEAM1-side.
                 'iwh_url': '<incoming_url_from_team_1>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_1>'},
+                'iwh_update': {'channel': '#<destination_channel_on_team_1>',
+                               '_atchannel': '<team1_name_for_team2>'},
                 # Linked with other, optional.
                 'owh_linked': '<outgoing_token_from_team_1>',
                 # Web Api token, optional, see https://api.slack.com/web.
@@ -73,6 +79,21 @@ It works like this:
   * The subprocess translates the values from the _Outgoing WebHook_ to
     values for the _Incoming WebHook_, optionally overwriting the
     #channel name.
+  * The subprocess translates the values from the _Outgoing WebHook_ to
+    values for the Incoming WebHook:
+    - It overwrites the #channel name (if `channel` in `iwh_update` is
+      set).
+    - It adds avatars to the user messages (if `wa_token` is set).
+    - It replaces @team1 with @channel (if `_atchannel` in `iwh_update`
+      is set).
+    - It removes/untranslates local @mentions (if `wa_token` is set).
+  * The translated values get posted to the Incoming WebHook URL.
+
+Supported commands by the bot -- type it in a bridged channel and get
+the response there:
+
+  * `!info` lists the users on both sides of the bridge. Now you know
+    who you can @mention.
 
 
 TODO
@@ -85,3 +106,4 @@ TODO
   * Add default icon to CONFIG, so we can reuse the same incoming
     webhook for more than one team, even if they don't supply the
     wa_token.
+  * Clean up the config. It's a horrible mess as it is.
