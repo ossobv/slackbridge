@@ -152,16 +152,20 @@ WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
 #     def __init__(self, *args, **kwargs):
 #         super(Logger, self).__init__(*args, **kwargs)
 #         self.addFilter(Logger.AddPidFilter())
+# logging.setLoggerClass(Logger)
 #
 # log_file = '/srv/http/my.example.com/logs/%s.log' % (
 #     __file__.rsplit('/', 1)[-1].rsplit('.', 1)[0],)
-# logging.basicConfig(
-#     filename=log_file,
-#     level=logging.DEBUG,
-#     format='[%(asctime)s] %(levelname)s/%(pid)s: %(message)s',
-#     datefmt='%Y-%m-%d %H:%M:%S %Z')
-# logging.setLoggerClass(Logger)
+# handler = logging.handlers.RotatingFileHandler(
+#     log_file, maxBytes=(2 * 1024 * 1024), backupCount=7)
+# handler.setLevel(logging.DEBUG)
+# handler.setFormatter(logging.Formatter(
+#     '[%(asctime)s] %(levelname)s: %(message)s',
+#     datefmt='%Y-%m-%d %H:%M:%S %Z'))
+#
 log = logging.getLogger('slackbridge')
+# logger.setLevel(logging.DEBUG)
+# logger.addHandler(handler)
 
 
 class RequestHandler(object):
