@@ -251,6 +251,7 @@ class ResponseHandler(object):
         self.config = config
         self.log = logger
         self.users_lists = {}
+        self.channels_lists = {}
 
     def respond(self, outgoingwh_values):
         # Never forward messages from the slackbot, they could cause
@@ -292,16 +293,20 @@ class ResponseHandler(object):
             self.incomingwh_post(remote_iwh_url, payload)
             return
 
-        users_list = self.get_users_list(owh_token, config.get('wa_token'))
+        users_list = self.get_users_list(
+            owh_token, config.get('wa_token'))
+        channels_list = self.get_channels_list(
+            owh_token, config.get('wa_token'))
         payload = self.outgoingwh_to_incomingwh(
-            outgoingwh_values, config['iwh_update'], users_list)
+            outgoingwh_values, config['iwh_update'], users_list, channels_list)
 
         # Send.
         self.log.info('Responding with %r to %s', payload, config['iwh_url'])
         self.incomingwh_post(config['iwh_url'], payload)
 
     @classmethod
-    def outgoingwh_to_incomingwh(cls, outgoingwh_values, update, users_list):
+    def outgoingwh_to_incomingwh(cls, outgoingwh_values, update,
+                                 users_list, channels_list):
         # https://api.slack.com/docs/formatting
         #
         # {'user_id': 'USLACKBOT', 'channel_name': 'crack', 'timestamp':
@@ -335,7 +340,8 @@ class ResponseHandler(object):
         #
         payload = {
             'text': cls.outgoingwh_fixtext(
-                outgoingwh_values['text'], users_list,
+                outgoingwh_values['text'],
+                users_list, channels_list,
                 atchannel=update.get('_atchannel')),
             'channel': '#' + outgoingwh_values['channel_name'],
             'username': outgoingwh_values['user_name'],
@@ -352,23 +358,41 @@ class ResponseHandler(object):
         return payload
 
     @classmethod
-    def outgoingwh_fixtext(cls, text, users_list, atchannel):
+    def outgoingwh_fixtext(cls, text, users_list, channels_list, atchannel):
         """
         Replace "abc <@U9999ZZZZ> def" with "abc @someuser def" if we
         have that user in our list.
+
+        Replace "@teamname" with "@channel" if teamname is defined.
+
+        Replace "abc <#C03CYDD1R> def" with "abc #somechan def" if we have that
+        channel in our list.
         """
-        def replace(match):
+        def replace_channel(match):
+            channel_id = match.groups()[0]
+            try:
+                return '#' + channels_list[channel_id]['name']
+            except KeyError:
+                return '<#' + channel_id + '>'  # untouched
+
+        def replace_user(match):
             user_id = match.groups()[0]
             try:
                 return '@' + users_list[user_id]['name']
             except KeyError:
                 return '<@' + user_id + '>'  # untouched
 
+        # @teamname => @channel
         if atchannel:
             text = re.sub(r'(^|[^\w])@' + atchannel + r'\b',
                           r'\1@channel',
                           text)
-        text = re.sub(r'<@(U[^>]+)>', replace, text)
+
+        # <@U123> => @user
+        text = re.sub(r'<@(U[^>]+)>', replace_user, text)
+
+        # <#C123> => #channel
+        text = re.sub(r'<#(C[^>]+)>', replace_channel, text)
 
         return text
 
@@ -417,6 +441,36 @@ class ResponseHandler(object):
                 self.log.debug('users_lists: %r', self.users_lists[owh_token])
 
         return self.users_lists[owh_token]
+
+    def get_channels_list(self, owh_token, wa_token):
+        # Check if we have the list already.
+        # TODO: this is now infinitely cached, not nice
+        if not wa_token:
+            self.channels_lists[owh_token] = {}
+
+        if owh_token not in self.channels_lists:
+            self.log.info('Fetching channels.list for %s...', owh_token)
+            url = WA_CHANNELS_LIST % {'wa_token': wa_token}
+            try:
+                response = request.urlopen(url)
+            except Exception as e:
+                self.log.error('Fetching channels.list failed: %s', e)
+                if hasattr(e, 'fp'):
+                    data = e.fp.read()
+                    self.log.info('Got data: %r', data)
+                self.channels_lists[owh_token] = {}
+            else:
+                data = response.read()
+                data = data.decode('utf-8', 'replace')
+                channels = json.loads(data)
+                channels = dict(
+                    (i.get('id'),
+                     {'name': i.get('name', 'NAMELESS')})
+                    for i in channels.get('channels', []))
+                self.channels_lists[owh_token] = channels
+                self.log.debug('channels_lists: %r', self.channels_lists[owh_token])
+
+        return self.channels_lists[owh_token]
 
     def get_channel_members(self, wa_token, channel_name):
         """
