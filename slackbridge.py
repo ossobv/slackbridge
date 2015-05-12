@@ -160,7 +160,7 @@ WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
 #     log_file, maxBytes=(2 * 1024 * 1024), backupCount=7)
 # handler.setLevel(logging.DEBUG)
 # handler.setFormatter(logging.Formatter(
-#     '[%(asctime)s] %(levelname)s: %(message)s',
+#     '[%(asctime)s] %(levelname)s/%(pid)s: %(message)s',
 #     datefmt='%Y-%m-%d %H:%M:%S %Z'))
 #
 log = logging.getLogger('slackbridge')
