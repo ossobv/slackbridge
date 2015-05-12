@@ -100,6 +100,8 @@ import datetime
 import json
 import logging
 import re
+import smtplib
+import time
 import traceback
 
 try:
@@ -111,6 +113,8 @@ try:
 except ImportError:
     import urllib as parse  # python2
 
+from email.header import Header
+from email.mime.text import MIMEText
 from multiprocessing import Process, Pipe
 from pprint import pformat
 
@@ -125,10 +129,14 @@ BASE_PATH = '/'
 CONFIG = {}
 # Lazy initialization of workers?
 LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
+# Notification settings (mail_admins) in case of broken connections.
+MAIL_FROM = 'noreply@slackbridge.example.com'
+MAIL_TO = ('root',)  # a tuple
 
 # Or, you can put the config (and logging defaults) in a separate file.
 try:
-    from slackbridgeconf import BASE_PATH, CONFIG, LAZY_INITIALIZATION
+    from slackbridgeconf import (
+        BASE_PATH, CONFIG, LAZY_INITIALIZATION, MAIL_FROM, MAIL_TO)
 except ImportError:
     pass
 
@@ -142,7 +150,8 @@ WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
                     'exclude_archived=1')
 
 
-# # Optionally configure a basic logger.
+# # Optionally configure a basic logger. You'll probably want to place
+# # this in the slackbridgeconf.
 # class Logger(logging.getLoggerClass()):
 #     class AddPidFilter(logging.Filter):
 #         def filter(self, record):
@@ -166,6 +175,16 @@ WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
 log = logging.getLogger('slackbridge')
 # logger.setLevel(logging.DEBUG)
 # logger.addHandler(handler)
+
+
+def mail_admins(subject, body):
+    msg = MIMEText(body.encode('utf-8'), 'plain', 'utf-8')
+    msg['Subject'] = Header(subject.encode('utf-8'), 'utf-8')
+    msg['From'] = MAIL_FROM
+    msg['To'] = ', '.join(MAIL_TO)
+    s = smtplib.SMTP('127.0.0.1')
+    s.sendmail(MAIL_FROM, list(MAIL_TO), msg.as_string())
+    s.quit()
 
 
 class RequestHandler(object):
@@ -404,16 +423,28 @@ class ResponseHandler(object):
     def incomingwh_post(cls, url, payload):
         data = parse.urlencode({'payload': json.dumps(payload)})
         log.debug('incomingwh_post: send: %r', data)
-        try:
-            response = request.urlopen(url, data.encode('utf-8'))
-        except Exception as e:
-            log.error('Posting message failed: %s', e)
-            if hasattr(e, 'fp'):
-                data = e.fp.read()
-                log.info('Got data: %r', data)
+
+        tries = 5
+        for i in range(tries):
+            try:
+                response = request.urlopen(url, data.encode('utf-8'))
+            except Exception as e:
+                log.error('Posting message (try %d) failed: %s', i, e)
+                if hasattr(e, 'fp'):
+                    data = e.fp.read()
+                    log.info('Got data: %r', data)
+
+                if i < (tries - 1):
+                    time.sleep(3 * i + 1)
+            else:
+                data = response.read()
+                log.debug('incomingwh_post: recv: %r', data)
+                break
         else:
-            data = response.read()
-            log.debug('incomingwh_post: recv: %r', data)
+            log.error('Posting message failed completely: %s', e)
+            mail_admins(
+                'Slack message posting failed',
+                '%r\ncould not be delivered :(')
 
     def get_users_list(self, owh_token, wa_token):
         # Check if we have the list already.
@@ -472,7 +503,8 @@ class ResponseHandler(object):
                      {'name': i.get('name', 'NAMELESS')})
                     for i in channels.get('channels', []))
                 self.channels_lists[owh_token] = channels
-                self.log.debug('channels_lists: %r', self.channels_lists[owh_token])
+                self.log.debug(
+                    'channels_lists: %r', self.channels_lists[owh_token])
 
         return self.channels_lists[owh_token]
 
