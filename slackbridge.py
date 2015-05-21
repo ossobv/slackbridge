@@ -409,7 +409,8 @@ class ResponseHandler(object):
         if atchannel:
             text = re.sub(r'(^|[^\w])@' + atchannel + r'\b',
                           r'\1@channel',
-                          text)
+                          text,
+                          flags=re.I)
 
         # <@U123> => @user
         text = re.sub(r'<@(U[^>]+)>', replace_user, text)
