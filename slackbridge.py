@@ -432,20 +432,20 @@ class ResponseHandler(object):
             except Exception as e:
                 log.error('Posting message (try %d) failed: %s', i, e)
                 if hasattr(e, 'fp'):
-                    data = e.fp.read()
-                    log.info('Got data: %r', data)
+                    ret = e.fp.read()
+                    log.info('Got data: %r', ret)
 
                 if i < (tries - 1):
                     time.sleep(3 * i + 1)
+                else:
+                    log.error('Posting message failed completely: %s', e)
+                    mail_admins(
+                        'Slack message posting failed: %s' % (e,),
+                        '%r\n%r\nMessage could not be delivered' % (e, ret))
             else:
                 data = response.read()
                 log.debug('incomingwh_post: recv: %r', data)
                 break
-        else:
-            log.error('Posting message failed completely: %s', e)
-            mail_admins(
-                'Slack message posting failed',
-                '%r\ncould not be delivered :(')
 
     def get_users_list(self, owh_token, wa_token):
         # Check if we have the list already.
