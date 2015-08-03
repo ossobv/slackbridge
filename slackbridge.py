@@ -149,6 +149,8 @@ WA_USERS_LIST = 'https://slack.com/api/users.list?token=%(wa_token)s'
 WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
                     'exclude_archived=1')
 
+# Other
+UNSET = '<unset>'
 
 # # Optionally configure a basic logger. You'll probably want to place
 # # this in the slackbridgeconf.
@@ -470,7 +472,7 @@ class ResponseHandler(object):
                 users = json.loads(data)
                 users = dict(
                     (i.get('id'),
-                     {'name': i.get('name', 'NAMELESS'),
+                     {'name': i.get('name', UNSET),
                       'image_32': i.get('profile', {}).get('image_32')})
                     for i in users.get('members', []))
                 self.users_lists[owh_token] = users
@@ -501,7 +503,7 @@ class ResponseHandler(object):
                 channels = json.loads(data)
                 channels = dict(
                     (i.get('id'),
-                     {'name': i.get('name', 'NAMELESS')})
+                     {'name': i.get('name', UNSET)})
                     for i in channels.get('channels', []))
                 self.channels_lists[owh_token] = channels
                 self.log.debug(
@@ -545,26 +547,46 @@ class ResponseHandler(object):
     def get_info(self, local_owh_token):
         # Get info about channel linkage and local and remote users.
         local_config = self.config[local_owh_token]
-        local_channel = remote_channel = remote_wa_token = '<unset>'
-        local_atchannel = remote_atchannel = '<unset>'
+        local_channel = remote_channel = UNSET
+        local_atchannel = remote_atchannel = UNSET
         local_users = remote_users = []
         local_wa_token = local_config.get('wa_token', '')
 
+        remote_owh_token = local_config.get('owh_linked')
+        remote_config = self.config.get(remote_owh_token, {})
+        remote_wa_token = remote_config.get('wa_token', '')
+
         try:
-            remote_channel = local_config['iwh_update']['channel'][1:]
+            if local_config['iwh_update']['channel'][0:1] == '#':
+                remote_channel = local_config['iwh_update']['channel'][1:]
+            elif remote_config:
+                # Lookup channel name from channel id.
+                channels_list = self.get_channels_list(
+                    remote_owh_token, remote_wa_token)
+                tmp_channel = channels_list.get(
+                    local_config['iwh_update']['channel'])
+                if tmp_channel:
+                    remote_channel = tmp_channel['name']
         except KeyError:
             pass
+
         try:
             remote_atchannel = local_config['iwh_update']['_atchannel']
         except KeyError:
             pass
 
-        remote_owh_token = local_config.get('owh_linked')
-        remote_config = self.config.get(remote_owh_token)
         if remote_config:
-            remote_wa_token = remote_config.get('wa_token', '')
             try:
-                local_channel = remote_config['iwh_update']['channel'][1:]
+                if remote_config['iwh_update']['channel'][0:1] == '#':
+                    local_channel = remote_config['iwh_update']['channel'][1:]
+                else:
+                    # Lookup channel name from channel id.
+                    channels_list = self.get_channels_list(
+                        local_owh_token, local_wa_token)
+                    tmp_channel = channels_list.get(
+                        remote_config['iwh_update']['channel'])
+                    if tmp_channel:
+                        local_channel = tmp_channel['name']
             except KeyError:
                 pass
             try:
