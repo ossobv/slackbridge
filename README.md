@@ -99,7 +99,6 @@ the response there:
 TODO
 ----
 
-  * Add license.
   * Clean up code (ugly globals). Too few subclasses.
   * Make more extensible. You may want to integrate your own
     slackbot-style responses here.
