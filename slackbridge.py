@@ -168,7 +168,7 @@ UNSET = '<unset>'
 # log_file = '/srv/http/my.example.com/logs/%s.log' % (
 #     __file__.rsplit('/', 1)[-1].rsplit('.', 1)[0],)
 # handler = logging.handlers.RotatingFileHandler(
-#     log_file, maxBytes=(2 * 1024 * 1024), backupCount=7)
+#     log_file, encoding='utf-8', maxBytes=(2 * 1024 * 1024), backupCount=7)
 # handler.setLevel(logging.DEBUG)
 # handler.setFormatter(logging.Formatter(
 #     '[%(asctime)s] %(levelname)s/%(pid)s: %(message)s',
