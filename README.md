@@ -38,6 +38,8 @@ Configuration in Slack:
 
 Configuration of this application:
 
+(Heroku configuration can be found below.)
+
   * Set the `BASE_PATH` to `"/"`. If this script does not run in the root of
     your HTTP server, you need to alter that.
   * There is a `CONFIG` dictionary below. You need to configure it as
@@ -94,6 +96,34 @@ the response there:
 
   * `!info` lists the users on both sides of the bridge. Now you know
     who you can @mention.
+
+
+Heroku
+------
+
+These instructions require [Heroku Command
+Line](https://devcenter.heroku.com/articles/heroku-command-line).
+
+```
+heroku create
+cp sample.env .env
+# Properly set all environment variables in file
+vim .env
+# Test running the bridge locally
+heroku local
+# Push environment variables to Heroku
+heroku config:push --overwrite
+# Deploy to Heroku
+git push heroku <my-branch>
+```
+
+Things to note:
+
+  * Free Heroku dynos can only run 18 hours per day. After that, the
+    slack bridge will simply not work. This can be very confusing. You
+    may wish to consider paying $7/month for a 24h dyno.
+  * Please see `sample.env` for example of how to set environment
+    variables.
 
 
 TODO

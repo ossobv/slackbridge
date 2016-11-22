@@ -132,6 +132,7 @@ except ImportError:
 from email.header import Header
 from email.mime.text import MIMEText
 from multiprocessing import Process, Pipe
+from os import environ
 from pprint import pformat
 
 
@@ -142,7 +143,37 @@ BASE_PATH = '/'
 # The subdictionaries contain 'iwh_url' for "Incoming WebHooks" post and
 # a dictionary with payload updates ({'channel': '#new_chan'}).
 # TODO: should we index it by "service_id" instead of "(owh)token"?
-CONFIG = {}
+try:
+    CONFIG = {}
+    i = 1
+
+    while True:
+        portal_config = {
+            environ['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]: {
+                'iwh_url': environ['PORTAL_{}_SIDE_B_WEBHOOK_IN_URL'.format(i)],
+                'iwh_update': {
+                    'channel': environ['PORTAL_{}_SIDE_B_CHANNEL_NAME'.format(i)],
+                    '_atchannel': environ['PORTAL_{}_SIDE_A_GROUP_NAME'.format(i)],
+                    },
+                'owh_linked': environ['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)],
+                'wa_token': environ['PORTAL_{}_SIDE_A_WEB_API_TOKEN'.format(i)],
+                },
+            environ['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]: {
+                'iwh_url': environ['PORTAL_{}_SIDE_A_WEBHOOK_IN_URL'.format(i)],
+                'iwh_update': {
+                    'channel': environ['PORTAL_{}_SIDE_A_CHANNEL_NAME'.format(i)],
+                    '_atchannel': environ['PORTAL_{}_SIDE_B_GROUP_NAME'.format(i)],
+                    },
+                'owh_linked': environ['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)],
+                'wa_token': environ['PORTAL_{}_SIDE_B_WEB_API_TOKEN'.format(i)],
+                },
+            }
+
+        CONFIG.update(portal_config)
+        i += 1
+except KeyError:
+    pass
+
 # Lazy initialization of workers?
 LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
 # Notification settings (mail_admins) in case of broken connections.
