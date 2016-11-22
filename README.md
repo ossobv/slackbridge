@@ -10,6 +10,9 @@ Then, no more hard times of having to grant each others' workers access
 on both Slack teams: you can now form a union between two of your Slack
 \#channels using this bridge.
 
+**Note:** This fork has been customized to work on Heroku. (See below
+section.)
+
 
 Configuration and setup
 -----------------------
@@ -94,6 +97,27 @@ the response there:
 
   * `!info` lists the users on both sides of the bridge. Now you know
     who you can @mention.
+
+
+Heroku
+------
+
+This fork is customized to work on Heroku. These instructions require
+[Heroku Command
+Line](https://devcenter.heroku.com/articles/heroku-command-line).
+
+```
+heroku create
+cp sample.env .env
+# Properly set all environment variables in file
+vim .env
+# Test running the bridge locally
+heroku local
+# Push environment variables to Heroku
+heroku config:push --overwrite
+# Deploy to Heroku
+git push heroku <my-branch>
+```
 
 
 TODO
