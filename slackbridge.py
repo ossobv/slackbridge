@@ -147,8 +147,8 @@ CONFIG = {
         environ['TEAM_1_WEBHOOK_OUT_TOKEN']: {
             'iwh_url': environ['TEAM_2_WEBHOOK_IN_URL'],
             'iwh_update': {
-                'channel': '#' + environ['TEAM_2_CHANNEL_NAME'],
-                '_atchannel': environ['TEAM_1_CHANNEL_NAME'],
+                'channel': environ['TEAM_2_CHANNEL_NAME'],
+                '_atchannel': environ['TEAM_1_GROUP_NAME'],
                 },
             'owh_linked': environ['TEAM_2_WEBHOOK_OUT_TOKEN'],
             'wa_token': environ['TEAM_1_WEB_API_TOKEN'],
@@ -156,8 +156,8 @@ CONFIG = {
         environ['TEAM_2_WEBHOOK_OUT_TOKEN']: {
             'iwh_url': environ['TEAM_1_WEBHOOK_IN_URL'],
             'iwh_update': {
-                'channel': '#' + environ['TEAM_1_CHANNEL_NAME'],
-                '_atchannel': environ['TEAM_2_CHANNEL_NAME'],
+                'channel': environ['TEAM_1_CHANNEL_NAME'],
+                '_atchannel': environ['TEAM_2_GROUP_NAME'],
                 },
             'owh_linked': environ['TEAM_1_WEBHOOK_OUT_TOKEN'],
             'wa_token': environ['TEAM_2_WEB_API_TOKEN'],
