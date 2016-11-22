@@ -132,6 +132,7 @@ except ImportError:
 from email.header import Header
 from email.mime.text import MIMEText
 from multiprocessing import Process, Pipe
+from os import environ
 from pprint import pformat
 
 
@@ -142,7 +143,24 @@ BASE_PATH = '/'
 # The subdictionaries contain 'iwh_url' for "Incoming WebHooks" post and
 # a dictionary with payload updates ({'channel': '#new_chan'}).
 # TODO: should we index it by "service_id" instead of "(owh)token"?
-CONFIG = {}
+CONFIG = {
+        environ['TEAM_1_WEBHOOK_OUT_TOKEN']: {
+            'iwh_url': environ['TEAM_2_WEBHOOK_IN_URL'],
+            'iwh_update': {
+                'channel': '#' + environ['TEAM_2_CHANNEL_NAME'],
+                '_atchannel': environ['TEAM_1_CHANNEL_NAME'],
+                },
+            'owh_linked': environ['TEAM_2_WEBHOOK_OUT_TOKEN'],
+            },
+        environ['TEAM_2_WEBHOOK_OUT_TOKEN']: {
+            'iwh_url': environ['TEAM_1_WEBHOOK_IN_URL'],
+            'iwh_update': {
+                'channel': '#' + environ['TEAM_1_CHANNEL_NAME'],
+                '_atchannel': environ['TEAM_2_CHANNEL_NAME'],
+                },
+            'owh_linked': environ['TEAM_1_WEBHOOK_OUT_TOKEN'],
+            },
+        }
 # Lazy initialization of workers?
 LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
 # Notification settings (mail_admins) in case of broken connections.
