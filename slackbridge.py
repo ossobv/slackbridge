@@ -151,6 +151,7 @@ CONFIG = {
                 '_atchannel': environ['TEAM_1_CHANNEL_NAME'],
                 },
             'owh_linked': environ['TEAM_2_WEBHOOK_OUT_TOKEN'],
+            'wa_token': environ['TEAM_1_WEB_API_TOKEN'],
             },
         environ['TEAM_2_WEBHOOK_OUT_TOKEN']: {
             'iwh_url': environ['TEAM_1_WEBHOOK_IN_URL'],
@@ -159,6 +160,7 @@ CONFIG = {
                 '_atchannel': environ['TEAM_2_CHANNEL_NAME'],
                 },
             'owh_linked': environ['TEAM_1_WEBHOOK_OUT_TOKEN'],
+            'wa_token': environ['TEAM_2_WEB_API_TOKEN'],
             },
         }
 # Lazy initialization of workers?
