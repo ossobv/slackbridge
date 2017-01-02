@@ -144,23 +144,23 @@ BASE_PATH = '/'
 # a dictionary with payload updates ({'channel': '#new_chan'}).
 # TODO: should we index it by "service_id" instead of "(owh)token"?
 CONFIG = {
-        environ['TEAM_1_WEBHOOK_OUT_TOKEN']: {
-            'iwh_url': environ['TEAM_2_WEBHOOK_IN_URL'],
+        environ['PORTAL_1_SIDE_A_WEBHOOK_OUT_TOKEN']: {
+            'iwh_url': environ['PORTAL_1_SIDE_B_WEBHOOK_IN_URL'],
             'iwh_update': {
-                'channel': environ['TEAM_2_CHANNEL_NAME'],
-                '_atchannel': environ['TEAM_1_GROUP_NAME'],
+                'channel': environ['PORTAL_1_SIDE_B_CHANNEL_NAME'],
+                '_atchannel': environ['PORTAL_1_SIDE_A_GROUP_NAME'],
                 },
-            'owh_linked': environ['TEAM_2_WEBHOOK_OUT_TOKEN'],
-            'wa_token': environ['TEAM_1_WEB_API_TOKEN'],
+            'owh_linked': environ['PORTAL_1_SIDE_B_WEBHOOK_OUT_TOKEN'],
+            'wa_token': environ['PORTAL_1_SIDE_A_WEB_API_TOKEN'],
             },
-        environ['TEAM_2_WEBHOOK_OUT_TOKEN']: {
-            'iwh_url': environ['TEAM_1_WEBHOOK_IN_URL'],
+        environ['PORTAL_1_SIDE_B_WEBHOOK_OUT_TOKEN']: {
+            'iwh_url': environ['PORTAL_1_SIDE_A_WEBHOOK_IN_URL'],
             'iwh_update': {
-                'channel': environ['TEAM_1_CHANNEL_NAME'],
-                '_atchannel': environ['TEAM_2_GROUP_NAME'],
+                'channel': environ['PORTAL_1_SIDE_A_CHANNEL_NAME'],
+                '_atchannel': environ['PORTAL_1_SIDE_B_GROUP_NAME'],
                 },
-            'owh_linked': environ['TEAM_1_WEBHOOK_OUT_TOKEN'],
-            'wa_token': environ['TEAM_2_WEB_API_TOKEN'],
+            'owh_linked': environ['PORTAL_1_SIDE_A_WEBHOOK_OUT_TOKEN'],
+            'wa_token': environ['PORTAL_1_SIDE_B_WEB_API_TOKEN'],
             },
         }
 # Lazy initialization of workers?
