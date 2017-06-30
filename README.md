@@ -119,6 +119,14 @@ heroku config:push --overwrite
 git push heroku <my-branch>
 ```
 
+Things to note:
+
+* Free Heroku dynos can only run 18 hours per day. After that, the
+  slack bridge will simply not work. This can be very confusing. You may
+  wish to consider paying $7/month for a 24h dyno.
+* Please see `sample.env` for example of how to set environment
+  variables.
+
 
 TODO
 ----
