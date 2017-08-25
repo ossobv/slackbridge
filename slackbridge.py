@@ -132,7 +132,7 @@ except ImportError:
 from email.header import Header
 from email.mime.text import MIMEText
 from multiprocessing import Process, Pipe
-from os import environ
+from os import environ as env
 from pprint import pformat
 
 
@@ -149,26 +149,27 @@ try:
 
     while True:
         portal_config = {
-            environ['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]: {
-                'iwh_url': environ['PORTAL_{}_SIDE_B_WEBHOOK_IN_URL'.format(i)],
+            env['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]: {
+                'iwh_url': env['PORTAL_{}_SIDE_B_WEBHOOK_IN_URL'.format(i)],
                 'iwh_update': {
-                    'channel': environ['PORTAL_{}_SIDE_B_CHANNEL_NAME'.format(i)],
-                    '_atchannel': environ['PORTAL_{}_SIDE_A_GROUP_NAME'.format(i)],
-                    },
-                'owh_linked': environ['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)],
-                'wa_token': environ['PORTAL_{}_SIDE_A_WEB_API_TOKEN'.format(i)],
+                    'channel': env['PORTAL_{}_SIDE_B_CHANNEL_NAME'.format(i)],
+                    '_atchannel': env['PORTAL_{}_SIDE_A_GROUP_NAME'.format(i)],
                 },
-            environ['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]: {
-                'iwh_url': environ['PORTAL_{}_SIDE_A_WEBHOOK_IN_URL'.format(i)],
+                'owh_linked': (
+                    env['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]),
+                'wa_token': env['PORTAL_{}_SIDE_A_WEB_API_TOKEN'.format(i)],
+            },
+            env['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]: {
+                'iwh_url': env['PORTAL_{}_SIDE_A_WEBHOOK_IN_URL'.format(i)],
                 'iwh_update': {
-                    'channel': environ['PORTAL_{}_SIDE_A_CHANNEL_NAME'.format(i)],
-                    '_atchannel': environ['PORTAL_{}_SIDE_B_GROUP_NAME'.format(i)],
-                    },
-                'owh_linked': environ['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)],
-                'wa_token': environ['PORTAL_{}_SIDE_B_WEB_API_TOKEN'.format(i)],
+                    'channel': env['PORTAL_{}_SIDE_A_CHANNEL_NAME'.format(i)],
+                    '_atchannel': env['PORTAL_{}_SIDE_B_GROUP_NAME'.format(i)],
                 },
-            }
-
+                'owh_linked': (
+                    env['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]),
+                'wa_token': env['PORTAL_{}_SIDE_B_WEB_API_TOKEN'.format(i)],
+            },
+        }
         CONFIG.update(portal_config)
         i += 1
 except KeyError:

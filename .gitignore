@@ -1,3 +1,8 @@
-.env
 *.pyc
 __pycache__
+
+*.orig
+*.rej
+
+# Heroku stuff
+/.env
