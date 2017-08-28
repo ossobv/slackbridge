@@ -1,1 +1,2 @@
+# Needed for Heroku, not for regular uWSGI setup.
 gunicorn==19.6.0

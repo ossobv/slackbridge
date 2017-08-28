@@ -20,7 +20,7 @@ class BridgeEndConfig(object):
     #   'othercompany'
     PEERNAME = None
     # WebAPI token for information gathering:
-    #   'xoxp-0123456789-0123456789-0123456789-abcdef'
+    #   'xoxb-0123456789-0123456789-0123456789-abcdef'
     WEBAPI_TOKEN = None
 
 

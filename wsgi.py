@@ -1,6 +1,6 @@
 # vim: set ts=8 sw=4 sts=4 et ai:
-# Slackbridge bridges Slack.com #channels between companies.
-# Copyright (C) 2015,2016  Walter Doekes, OSSO B.V.
+# SlackBridge bridges Slack.com #channels between companies.
+# Copyright (C) 2015-2017  Walter Doekes, OSSO B.V.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,101 +14,6 @@
 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""
-Slackbridge bridges Slack.com #channels between companies.
-
-  * Does your company use Slack?
-  * Does your customer/subcontractor also use slack?
-
-Then, no more hard times of having to grant each others' workers access
-on both Slack teams: you can now form a union between two of your Slack
-#channels using this bridge.
-
-You'll need to run this as a daemon on a publicly reachable IP:
-
-  * Test it in the foreground from the command line, to get a poor mans
-    builtin http server. You can use the nginx "proxy_pass" directive
-    (without path) to reach it.
-  * Run it as a WSGI application. Has been tested with uWSGI; you can
-    use the nginx "uwsgi_pass" directive to reach it. Multiple workers
-    are allowed, as long as it is single-threaded.
-
-Configuration in Slack:
-
-  * Create at least one "Incoming WebHook"[1] per Slack team; record the
-    URL.
-    (Pro tip: set the other relation's brand logo as default icon!)
-  * Create one "Outgoing WebHook"[2] per Slack #channel you want to
-    join; record the secret "token". Set the webhook POST URL to the URL
-    where this bridge is reachable from the world, and append
-    "/outgoing" to the path.
-
-Configuration of this application:
-
-  * Set the BASE_PATH to "/". If this script does not run in the root of
-    your HTTP server, you need to alter that.
-  * There is a CONFIG dictionary below. You need to configure it as
-    follows:
-
-        CONFIG = {
-            '<outgoing_token_from_team_1>': {
-                # The next two settings are for the TEAM2-side.
-                'iwh_url': '<incoming_webhook_url_from_team_2>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_2>',
-                               '_atchannel': '<team2_name_for_team1>'},
-                # Linked with other, optional.
-                'owh_linked': '<outgoing_token_from_team_2>',
-                # Web Api token, optional, see https://api.slack.com/web.
-                'wa_token': '<token_from_team1_user>',
-            },
-            '<outgoing_token_from_team_2>': {
-                # The next two settings are for the TEAM1-side.
-                'iwh_url': '<incoming_url_from_team_1>',
-                'iwh_update': {'channel': '#<destination_channel_on_team_1>',
-                               '_atchannel': '<team1_name_for_team2>'},
-                # Linked with other, optional.
-                'owh_linked': '<outgoing_token_from_team_1>',
-                # Web Api token, optional, see https://api.slack.com/web.
-                'wa_token': '<token_from_team2_user>',
-            },
-        }
-
-  * You can configure more pairs of bridges (or even one-way bridges) as
-    needed. You can reuse the Incoming WebHook URL if you want to bridge
-    more channels between the same teams.
-
-It works like this:
-
-  * The Slack Outgoing WebHook -- from both teams -- posts messages to
-    the slackbridge.
-  * The bridge posts the message to a subprocess, so the main process
-    can return immediately.
-  * The subprocess translates the values from the Outgoing WebHook to
-    values for the Incoming WebHook:
-    - It overwrites the #channel name (if 'channel' in 'iwh_update' is
-      set).
-    - It adds avatars to the user messages (if 'wa_token' is set).
-    - It replaces @team1 with @channel (if '_atchannel' in 'iwh_update'
-      is set).
-    - It removes/untranslates local @mentions (if 'wa_token' is set).
-  * The translated values get posted to the Incoming WebHook URL.
-
-Supported commands by the bot -- type it in a bridged channel and get
-the response there:
-
-  * `!info` lists the users on both sides of the bridge. Now you know
-    who you can @mention.
-
-
-Enjoy!
-
-
-[1] https://my.slack.com/services/new/incoming-webhook
-[2] https://my.slack.com/services/new/outgoing-webhook
-
-Copyright (C) Walter Doekes, OSSO B.V. 2015,2016.
-License: GPLv3+
-"""
 import cgi
 import datetime
 import json
