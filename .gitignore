@@ -3,6 +3,11 @@ __pycache__
 
 *.orig
 *.rej
+*.swp
+
+# Config files
+/slackbridge.ini
+/slackbridgeconf.py
 
 # Heroku stuff
 /.env

@@ -60,8 +60,6 @@ Configuration of this application:
                 'owh_linked': '<outgoing_token_from_team_2>',
                 # Web Api token, optional, see https://api.slack.com/web.
                 'wa_token': '<token_from_team1_user>',
-                # Optional team 2 name to notify @team2 from team1.
-                'other_name': '<team2_name>',
             },
             '<outgoing_token_from_team_2>': {
                 # The next two settings are for the TEAM1-side.
@@ -132,48 +130,26 @@ except ImportError:
 from email.header import Header
 from email.mime.text import MIMEText
 from multiprocessing import Process, Pipe
-from os import environ as env
 from pprint import pformat
 
+from slackbridge.config import auto
 
 # BASE_PATH needs to be set to the path prefix (location) as configured
 # in the web server.
 BASE_PATH = '/'
-# CONFIG is a dictionary indexed by "Outgoing WebHooks" token.
-# The subdictionaries contain 'iwh_url' for "Incoming WebHooks" post and
-# a dictionary with payload updates ({'channel': '#new_chan'}).
-# TODO: should we index it by "service_id" instead of "(owh)token"?
-try:
-    CONFIG = {}
-    i = 1
 
-    while True:
-        portal_config = {
-            env['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]: {
-                'iwh_url': env['PORTAL_{}_SIDE_B_WEBHOOK_IN_URL'.format(i)],
-                'iwh_update': {
-                    'channel': env['PORTAL_{}_SIDE_B_CHANNEL_NAME'.format(i)],
-                    '_atchannel': env['PORTAL_{}_SIDE_A_GROUP_NAME'.format(i)],
-                },
-                'owh_linked': (
-                    env['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]),
-                'wa_token': env['PORTAL_{}_SIDE_A_WEB_API_TOKEN'.format(i)],
-            },
-            env['PORTAL_{}_SIDE_B_WEBHOOK_OUT_TOKEN'.format(i)]: {
-                'iwh_url': env['PORTAL_{}_SIDE_A_WEBHOOK_IN_URL'.format(i)],
-                'iwh_update': {
-                    'channel': env['PORTAL_{}_SIDE_A_CHANNEL_NAME'.format(i)],
-                    '_atchannel': env['PORTAL_{}_SIDE_B_GROUP_NAME'.format(i)],
-                },
-                'owh_linked': (
-                    env['PORTAL_{}_SIDE_A_WEBHOOK_OUT_TOKEN'.format(i)]),
-                'wa_token': env['PORTAL_{}_SIDE_B_WEB_API_TOKEN'.format(i)],
-            },
-        }
-        CONFIG.update(portal_config)
-        i += 1
-except KeyError:
+# Load CONFIG: autodetect which kind of config we use.
+try:
+    bridgeconfigs = auto.load()
+except StopIteration:
+    # Hope you have the CONFIG in slackbridgeconf like before.
     pass
+else:
+    # CONFIG is a dictionary indexed by "Outgoing WebHooks" token.  The
+    # subdictionaries contain 'iwh_url' for "Incoming WebHooks" post and
+    # a dictionary with payload updates ({'channel': '#new_chan'}).
+    # NOTE: This is about to change. Expect the CONFIG dict to be removed.
+    CONFIG = bridgeconfigs.to_config_dict()
 
 # Lazy initialization of workers?
 LAZY_INITIALIZATION = True  # use, unless you have uwsgi-lazy-apps
