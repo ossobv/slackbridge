@@ -502,7 +502,8 @@ class ResponseHandler(object):
                         (i.get('id'),
                          {'name': i.get('name', UNSET),
                           'image_32': i.get('profile', {}).get('image_32')})
-                        for i in users)
+                        # (don't load deleted users)
+                        for i in users if not i.get('deleted', False))
                     self.users_lists[owh_token] = users
                     self.log.debug(
                         'users_list: %r', self.users_lists[owh_token])
@@ -585,7 +586,13 @@ class ResponseHandler(object):
             return members
 
         users_list = self.get_users_list(owh_token, wa_token)
-        return [users_list.get(i, {'name': i})['name'] for i in members]
+        return [
+            # Fetch names of everyone in channel, but only if we have the
+            # name-mapping. If we don't have the name, the user is probably
+            # deleted.
+            username for username in [
+                users_list.get(i, {'name': False})['name'] for i in members]
+            if username]
 
     def get_info(self, local_owh_token):
         # Get info about channel linkage and local and remote users.
