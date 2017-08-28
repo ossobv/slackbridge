@@ -471,7 +471,8 @@ class ResponseHandler(object):
             else:
                 data = response.read()
                 log.debug('incomingwh_post: recv: %r', data)
-                break
+                if data == b'ok':
+                    break
 
     def get_users_list(self, owh_token, wa_token):
         # Check if we have the list already.
@@ -493,14 +494,21 @@ class ResponseHandler(object):
             else:
                 data = response.read()
                 data = data.decode('utf-8', 'replace')
-                users = json.loads(data)
-                users = dict(
-                    (i.get('id'),
-                     {'name': i.get('name', UNSET),
-                      'image_32': i.get('profile', {}).get('image_32')})
-                    for i in users.get('members', []))
-                self.users_lists[owh_token] = users
-                self.log.debug('users_lists: %r', self.users_lists[owh_token])
+                self.log.debug('Got users.list data: %r', data)
+                data = json.loads(data)
+                if data['ok']:
+                    users = data.get('members', [])
+                    users = dict(
+                        (i.get('id'),
+                         {'name': i.get('name', UNSET),
+                          'image_32': i.get('profile', {}).get('image_32')})
+                        for i in users)
+                    self.users_lists[owh_token] = users
+                    self.log.debug(
+                        'users_list: %r', self.users_lists[owh_token])
+                else:
+                    self.log.error(
+                        'Fetching users.list failed: %s', data['error'])
 
         return self.users_lists[owh_token]
 
@@ -524,14 +532,20 @@ class ResponseHandler(object):
             else:
                 data = response.read()
                 data = data.decode('utf-8', 'replace')
-                channels = json.loads(data)
-                channels = dict(
-                    (i.get('id'),
-                     {'name': i.get('name', UNSET)})
-                    for i in channels.get('channels', []))
-                self.channels_lists[owh_token] = channels
-                self.log.debug(
-                    'channels_lists: %r', self.channels_lists[owh_token])
+                self.log.debug('Got channels.list data: %r', data)
+                data = json.loads(data)
+                if data['ok']:
+                    channels = data.get('channels', [])
+                    channels = dict(
+                        (i.get('id'),
+                         {'name': i.get('name', UNSET)})
+                        for i in channels)
+                    self.channels_lists[owh_token] = channels
+                    self.log.debug(
+                        'channels_list: %r', self.channels_lists[owh_token])
+                else:
+                    self.log.error(
+                        'Fetching channels.list failed: %s', data['error'])
 
         return self.channels_lists[owh_token]
 
@@ -553,11 +567,16 @@ class ResponseHandler(object):
         else:
             data = response.read()
             data = data.decode('utf-8', 'replace')
-            channels = json.loads(data)
-            self.log.debug('channels.list: %r', channels)
-            for channel in channels.get('channels', []):
-                if channel.get('name') == channel_name:
-                    return channel.get('members', [])
+            self.log.debug('Got channels.list data: %r', data)
+            data = json.loads(data)
+            if data['ok']:
+                channels = data.get('channels', [])
+                for channel in channels:
+                    if channel.get('name') == channel_name:
+                        return channel.get('members', [])
+            else:
+                self.log.error(
+                    'Fetching channels.list failed: %s', data['error'])
         return []
 
     def get_channel_users(self, owh_token, wa_token, channel_name):
