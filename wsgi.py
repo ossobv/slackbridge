@@ -331,6 +331,12 @@ class ResponseHandler(object):
 
         def replace_user(match):
             user_id = match.groups()[0]
+            # <@UABC|somename>, used in file uploads:
+            # 'text': '<@UABC|somename> uploaded a file: ...'
+            if '|' in user_id:
+                return user_id.split('|', 1)[1]
+            # <@UABC>, used in other places:
+            # 'text': '<@UABC>: you forget that file sending fails'
             try:
                 return '@' + users_list[user_id]['name']
             except KeyError:
