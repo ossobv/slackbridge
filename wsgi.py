@@ -334,7 +334,7 @@ class ResponseHandler(object):
             # <@UABC|somename>, used in file uploads:
             # 'text': '<@UABC|somename> uploaded a file: ...'
             if '|' in user_id:
-                return user_id.split('|', 1)[1]
+                return '@' + user_id.split('|', 1)[1]
             # <@UABC>, used in other places:
             # 'text': '<@UABC>: you forget that file sending fails'
             try:
