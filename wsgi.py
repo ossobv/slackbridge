@@ -232,19 +232,20 @@ class ResponseHandler(object):
                 remote_iwh_url = remote_config['iwh_url']
             except KeyError:
                 self.log.warn('Could not get linked IWH URL')
-                return
-            payload = {
-                'text': '(local reply only)\n' + '\n'.join(
-                    '@%s %s: %s' % (
-                        i['atchannel'], i['channel'],
-                        ', '.join(sorted(i['users'])))
-                    for i in sorted(info.values(),
-                                    key=(lambda x: x['channel']))),
-                'channel': '#' + outgoingwh_values['channel_name']
-            }
-            # Send.
-            self.log.info('Responding with %r to %s', payload, remote_iwh_url)
-            self.incomingwh_post(remote_iwh_url, payload)
+            else:
+                payload = {
+                    'text': '(local reply only)\n' + '\n'.join(
+                        '@%s %s: %s' % (
+                            i['atchannel'], i['channel'],
+                            ', '.join(sorted(i['users'])))
+                        for i in sorted(info.values(),
+                                        key=(lambda x: x['channel']))),
+                    'channel': '#' + outgoingwh_values['channel_name'],
+                    'mrkdwn': False,
+                }
+                # Send.
+                self.log.info('Responding with %r to %s', payload, remote_iwh_url)
+                self.incomingwh_post(remote_iwh_url, payload)
             return
 
         users_list = self.get_users_list(
@@ -256,7 +257,29 @@ class ResponseHandler(object):
 
         # Send.
         self.log.info('Responding with %r to %s', payload, config['iwh_url'])
-        self.incomingwh_post(config['iwh_url'], payload)
+        self.incomingwh_post(config['iwh_url'], payload, failure_callback=(
+            self.create_error_response(outgoingwh_values, config, payload)))
+
+    def create_error_response(self, outgoingwh_values, config,
+                              payload_that_failed):
+        def on_failure():
+            try:
+                remote_config = self.config[config['owh_linked']]
+                remote_iwh_url = remote_config['iwh_url']
+            except KeyError:
+                self.log.warn('Could not get linked IWH URL')
+            else:
+                payload = {
+                    'text': (
+                        '(local reply only)\n'
+                        'failed to send message with the following payload:\n'
+                        '\n%r' % (payload_that_failed,)),
+                    'channel': '#' + outgoingwh_values['channel_name'],
+                    'mrkdwn': False,
+                }
+                self.incomingwh_post(remote_iwh_url, payload)
+
+        return on_failure
 
     @classmethod
     def outgoingwh_to_incomingwh(cls, outgoingwh_values, update,
@@ -358,7 +381,7 @@ class ResponseHandler(object):
         return text
 
     @classmethod
-    def incomingwh_post(cls, url, payload):
+    def incomingwh_post(cls, url, payload, failure_callback=None):
         data = parse.urlencode({'payload': json.dumps(payload)})
         log.debug('incomingwh_post: send: %r', data)
 
@@ -378,7 +401,10 @@ class ResponseHandler(object):
                     log.error('Posting message failed completely: %s', e)
                     mail_admins(
                         'Slack message posting failed: %s' % (e,),
-                        '%r\n%r\nMessage could not be delivered' % (e, ret))
+                        '%r: %s\n\n%r\n\n... could not be delivered, '
+                        'got:\n\n%r\n' % (e, e, payload, ret))
+                    if failure_callback:
+                        failure_callback()
             else:
                 data = response.read()
                 log.debug('incomingwh_post: recv: %r', data)
