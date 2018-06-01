@@ -19,6 +19,7 @@ import datetime
 import json
 import logging
 import re
+import signal
 import smtplib
 import time
 import traceback
@@ -108,6 +109,12 @@ log = logging.getLogger('slackbridge')
 # logger.addHandler(handler)
 
 
+def alarm(signum, frame):
+    mail_send_error('Timer hit', exc=None, args=(
+        ''.join(traceback.format_stack()),))
+    raise ValueError('SIGALRM')
+
+
 def mail_admins(subject, body):
     msg = MIMEText(body.encode('utf-8'), 'plain', 'utf-8')
     msg['Subject'] = Header(subject.encode('utf-8'), 'utf-8')
@@ -116,6 +123,13 @@ def mail_admins(subject, body):
     s = smtplib.SMTP('127.0.0.1')
     s.sendmail(MAIL_FROM, list(MAIL_TO), msg.as_string())
     s.quit()
+
+
+def mail_send_error(shortmsg, exc=None, args=()):
+    mail_admins(
+        'Slack message send failed (%s): %s' % (shortmsg, exc),
+        'Please investigate. Args are:\n\n%s' % (
+            '\n\n'.join(str(i) for i in args)),)
 
 
 class RequestHandler(object):
@@ -147,8 +161,9 @@ class RequestHandler(object):
             payload = self.get_payload(environ)
             return self.post(payload)
         else:
-            start_response('405 Method Not Allowed', [('Allow', 'GET, POST')])
-            return []
+            self.start_response('405 Method Not Allowed', [
+                ('Allow', 'GET, POST')])
+            return [b'405']
 
     def get(self):
         log.debug('Handle GET: %s', self.path_info)
@@ -165,21 +180,30 @@ class RequestHandler(object):
 
         if self.path_info == '/outgoing':
             # Just put the entire postdata in the queue.
-            # TODO: check whether the pipe is full (if posting is broken
-            # for some reason)
-            self.ipc.send(self.get_fields(payload))
+
+            # Set an alarm to catch any unintended hangs along the road.
+            # XXX: does not work??
+            signal.signal(signal.SIGALRM, alarm)
+            signal.alarm(3)
+            try:
+                self.ipc.send(self.get_fields(payload))
+            except Exception as e:
+                mail_send_error('Enqueue fail', exc=e, args=(
+                    traceback.format_exc(),))
+                self.start_response('503 Subprocess timeout', [])
+                return [b'503']
+            finally:
+                signal.alarm(0)
 
             # Return the empty response.
             self.start_response(
                 '200 OK', [('Content-type',
                             'application/json; charset=utf-8')])
-            # TODO: if the pipe is full, we should reply that we cannot
-            # forward anymore.
             return ['{}'.encode('utf-8')]  # don't reply to outgoing messages..
 
         # Unknown.
-        self.start_response('404 Not Found')
-        return []
+        self.start_response('404 Not Found', [])
+        return [b'404']
 
     @staticmethod
     def get_payload(environ):
@@ -244,7 +268,8 @@ class ResponseHandler(object):
                     'mrkdwn': False,
                 }
                 # Send.
-                self.log.info('Responding with %r to %s', payload, remote_iwh_url)
+                self.log.info(
+                    'Responding with %r to %s', payload, remote_iwh_url)
                 self.incomingwh_post(remote_iwh_url, payload)
             return
 
@@ -399,10 +424,8 @@ class ResponseHandler(object):
                     time.sleep(3 * i + 1)
                 else:
                     log.error('Posting message failed completely: %s', e)
-                    mail_admins(
-                        'Slack message posting failed: %s' % (e,),
-                        '%r: %s\n\n%r\n\n... could not be delivered, '
-                        'got:\n\n%r\n' % (e, e, payload, ret))
+                    mail_send_error('POST failed 3x', exc=e, args=(
+                        repr(payload), repr(ret)))
                     if failure_callback:
                         failure_callback()
             else:
@@ -616,14 +639,24 @@ def response_worker(config, logger, ipc):
                 #     responsehandler.test(item.rsplit('/', 1)[-1])
             else:
                 try:
+                    # Set an alarm to catch any unintended hangs along
+                    # the road.
+                    signal.signal(signal.SIGALRM, alarm)
+                    signal.alarm(60)
                     responsehandler.respond(item)
-                except:
+                except Exception as e:
                     logger.error('For item: %r', item)
                     logger.error(traceback.format_exc())
                     logger.warn('Continuing...')
-    except:
+                    mail_send_error('Forward failed', exc=e, args=(
+                        repr(item), traceback.format_exc()))
+                finally:
+                    signal.alarm(0)
+    except Exception as e:
         logger.error(traceback.format_exc())
-        logger.warn('Aborting...')
+        logger.error('Aborting...')
+        mail_send_error('STOPPED', exc=e, args=(
+            traceback.format_exc(),))
 
 
 def application(environ, start_response):
