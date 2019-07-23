@@ -257,7 +257,7 @@ class ResponseHandler(object):
             except KeyError:
                 self.log.warn('Could not get linked IWH URL')
             else:
-                payload = {
+                reply_payload = {
                     'text': '(local reply only)\n' + '\n'.join(
                         '@%s %s: %s' % (
                             i['atchannel'], i['channel'],
@@ -269,8 +269,8 @@ class ResponseHandler(object):
                 }
                 # Send.
                 self.log.info(
-                    'Responding with %r to %s', payload, remote_iwh_url)
-                self.incomingwh_post(remote_iwh_url, payload)
+                    'Responding with %r to %s', reply_payload, remote_iwh_url)
+                self.incomingwh_post(remote_iwh_url, reply_payload)
             return
 
         users_list = self.get_users_list(
@@ -279,6 +279,30 @@ class ResponseHandler(object):
             owh_token, config.get('wa_token'))
         payload = self.outgoingwh_to_incomingwh(
             outgoingwh_values, config['iwh_update'], users_list, channels_list)
+
+        # Check for empty messages (a sign of attachments/photos):
+        if not payload.get('text') and 'username' in payload:
+            reply_payload = {
+                'text': (
+                    '({} tried to send non-text; '
+                    'slackbridge cannot forward)'.format(
+                        payload['username'])),
+                'channel': '#' + outgoingwh_values['channel_name'],
+                'mrkdwn': False,
+            }
+            try:
+                remote_config = self.config[config['owh_linked']]
+                remote_iwh_url = remote_config['iwh_url']
+            except KeyError:
+                self.log.warn('Could not get linked IWH URL')
+            else:
+                self.log.info(
+                    'Responding with %r to %s', reply_payload, remote_iwh_url)
+                self.incomingwh_post(remote_iwh_url, reply_payload)
+
+            # Update forwarded messsage.
+            reply_payload['channel'] = payload['channel']  # peer-side channel
+            payload = reply_payload
 
         # Send.
         self.log.info('Responding with %r to %s', payload, config['iwh_url'])
