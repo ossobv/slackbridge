@@ -76,8 +76,8 @@ RESPONSE_WORKER = None
 
 # API URLs
 WA_USERS_LIST = 'https://slack.com/api/users.list?token=%(wa_token)s'
-WA_CHANNELS_LIST = ('https://slack.com/api/channels.list?token=%(wa_token)s&'
-                    'exclude_archived=1')
+WA_CHANNELS_LIST = ('https://slack.com/api/conversations.list?'
+                    'token=%(wa_token)s&exclude_archived=1&limit=1000')
 
 # Other
 UNSET = '<unset>'
@@ -461,10 +461,10 @@ class ResponseHandler(object):
     def get_users_list(self, owh_token, wa_token):
         # Check if we have the list already.
         # TODO: this is now infinitely cached, not nice
-        if not wa_token:
-            self.users_lists[owh_token] = {}
-
         if owh_token not in self.users_lists:
+            if not wa_token:
+                return {}
+
             self.log.info('Fetching users.list for %s...', owh_token)
             url = WA_USERS_LIST % {'wa_token': wa_token}
             try:
@@ -494,16 +494,17 @@ class ResponseHandler(object):
                 else:
                     self.log.error(
                         'Fetching users.list failed: %s', data['error'])
+                    self.users_lists[owh_token] = {}
 
         return self.users_lists[owh_token]
 
     def get_channels_list(self, owh_token, wa_token):
         # Check if we have the list already.
         # TODO: this is now infinitely cached, not nice
-        if not wa_token:
-            self.channels_lists[owh_token] = {}
-
         if owh_token not in self.channels_lists:
+            if not wa_token:
+                return {}
+
             self.log.info('Fetching channels.list for %s...', owh_token)
             url = WA_CHANNELS_LIST % {'wa_token': wa_token}
             try:
@@ -531,6 +532,7 @@ class ResponseHandler(object):
                 else:
                     self.log.error(
                         'Fetching channels.list failed: %s', data['error'])
+                    self.channels_lists[owh_token] = {}
 
         return self.channels_lists[owh_token]
 
