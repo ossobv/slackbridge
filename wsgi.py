@@ -673,7 +673,7 @@ def response_worker(config, logger, ipc):
                 except Exception as e:
                     logger.error('For item: %r', item)
                     logger.error(traceback.format_exc())
-                    logger.warn('Continuing...')
+                    logger.warning('Continuing...')
                     mail_send_error('Forward failed', exc=e, args=(
                         repr(item), traceback.format_exc()))
                 finally:
